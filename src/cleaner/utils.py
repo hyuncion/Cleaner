@@ -33,32 +33,26 @@ def scan_photos(photo_dir: str | Path) -> list[str]:
         return []
 
     paths = [
-        str(p.resolve())
-        for p in root.rglob("*")
-        if p.is_file() and p.suffix.lower() in IMAGE_EXTS
+        str(path.resolve())
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in IMAGE_EXTS
     ]
     return sorted(paths)
 
 
 def is_colab_runtime() -> bool:
-    """Best-effort check for Google Colab.
-
-    This is intentionally lightweight and has no google.colab dependency, so the
-    normal local app remains unaffected.
-    """
     return bool(os.getenv("COLAB_RELEASE_TAG")) or Path("/content").exists()
 
 
 def default_photo_dir() -> str:
-    """Choose a convenient photo folder for local runs and Colab demos."""
     env_value = os.getenv("CLEANER_DEFAULT_PHOTO_DIR")
     if env_value:
         return str(Path(env_value).expanduser())
 
     candidates = [
         Path.cwd() / "demo_photos",
-        Path("/content/demo_photos"),
         Path("/content/Cleaner/demo_photos"),
+        Path("/content/demo_photos"),
         Path.home() / "Pictures",
     ]
 
@@ -66,4 +60,4 @@ def default_photo_dir() -> str:
         if candidate.exists() and candidate.is_dir():
             return str(candidate)
 
-    return str(Path.home() / "Pictures")
+    return str(Path.cwd() / "demo_photos")

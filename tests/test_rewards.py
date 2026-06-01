@@ -14,6 +14,6 @@ def test_xp_progress_bounds():
 
 def test_badges():
     badges = badges_for(total_labeled=120, discard_mb=1200, train_count=1)
-    assert "100장 판단" in badges
-    assert "1GB 세이버" in badges
-    assert "AI 첫 학습" in badges
+    assert "100 decisions" in badges
+    assert "1GB saved" in badges
+    assert "First AI training" in badges

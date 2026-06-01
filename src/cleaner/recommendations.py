@@ -43,7 +43,7 @@ def recommend_delete_candidates(
     return df
 
 
-def pick_next_photo(cfg: AppConfig, paths: list[str], mode: str) -> str | None:
+def pick_next_photo(cfg: AppConfig, paths: list[str], mode: str = "sequential") -> str | None:
     labels = load_labels(cfg)
     labeled_set = set(labels["path"].tolist())
     unlabeled = [p for p in paths if p not in labeled_set]
@@ -51,10 +51,10 @@ def pick_next_photo(cfg: AppConfig, paths: list[str], mode: str) -> str | None:
     if not unlabeled:
         return None
 
-    if mode == "랜덤":
+    if mode == "random":
         return random.choice(unlabeled)
 
-    if mode == "AI가 헷갈리는 사진":
+    if mode == "uncertain":
         df = recommend_delete_candidates(cfg, paths, top_n=1000, only_unlabeled=True)
         if not df.empty:
             df["uncertainty"] = (df["p_delete"] - 0.5).abs()

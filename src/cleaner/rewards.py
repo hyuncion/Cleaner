@@ -27,15 +27,15 @@ def xp_progress(xp: int) -> tuple[int, int, float]:
 def badges_for(total_labeled: int, discard_mb: float, train_count: int) -> list[str]:
     badges: list[str] = []
     if total_labeled >= 10:
-        badges.append("첫 정리 시작")
+        badges.append("First cleanup")
     if total_labeled >= 100:
-        badges.append("100장 판단")
+        badges.append("100 decisions")
     if total_labeled >= 500:
-        badges.append("500장 정리러")
+        badges.append("500 decisions")
     if discard_mb >= 1024:
-        badges.append("1GB 세이버")
+        badges.append("1GB saved")
     if train_count >= 1:
-        badges.append("AI 첫 학습")
+        badges.append("First AI training")
     if train_count >= 5:
-        badges.append("AI 트레이너")
+        badges.append("AI trainer")
     return badges

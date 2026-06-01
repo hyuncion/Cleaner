@@ -22,9 +22,9 @@ class ClipEncoder:
 
         for path in paths:
             try:
-                with Image.open(path) as im:
-                    im = ImageOps.exif_transpose(im).convert("RGB")
-                    images.append(self.preprocess(im))
+                with Image.open(path) as image:
+                    image = ImageOps.exif_transpose(image).convert("RGB")
+                    images.append(self.preprocess(image))
                     valid_paths.append(path)
             except Exception:
                 continue
@@ -34,10 +34,14 @@ class ClipEncoder:
 
         image_tensor = torch.stack(images).to(self.device)
         with torch.no_grad():
-            emb = self.model.encode_image(image_tensor)
-            emb = emb / emb.norm(dim=-1, keepdim=True)
+            if self.device == "cuda":
+                with torch.autocast(device_type="cuda"):
+                    embeddings = self.model.encode_image(image_tensor)
+            else:
+                embeddings = self.model.encode_image(image_tensor)
+            embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
 
-        return emb.detach().cpu().numpy().astype(np.float32), valid_paths
+        return embeddings.detach().cpu().numpy().astype(np.float32), valid_paths
 
 
 def choose_device(requested: str = "auto") -> str:
@@ -57,16 +61,12 @@ def choose_device(requested: str = "auto") -> str:
 
 
 def load_clip_encoder(cfg: AppConfig) -> ClipEncoder:
-    """Load OpenCLIP encoder.
-
-    Import open_clip lazily so modules/tests that do not need embedding can run
-    without immediately loading large model dependencies.
-    """
+    """Load OpenCLIP lazily so non-embedding code stays lightweight."""
     try:
         import open_clip
     except ImportError as exc:
         raise RuntimeError(
-            "open-clip-torch가 설치되어 있지 않습니다. `pip install open-clip-torch`를 실행하세요."
+            "open-clip-torch is not installed. Run `pip install open-clip-torch`."
         ) from exc
 
     device = choose_device(cfg.device)

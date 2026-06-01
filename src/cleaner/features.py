@@ -8,20 +8,16 @@ from cleaner.utils import safe_age_years, safe_file_mb
 
 
 def extract_basic_features(path: str) -> np.ndarray:
-    """Return small handcrafted features that complement CLIP embeddings.
-
-    These are cheap and explainable. They should not be used alone to delete photos;
-    the personal classifier learns how much the user cares about each signal.
-    """
+    """Return cheap metadata/image features that complement CLIP embeddings."""
     file_mb = safe_file_mb(path)
     age_years = safe_age_years(path)
 
     try:
-        with Image.open(path) as im:
-            im = ImageOps.exif_transpose(im)
-            width, height = im.size
+        with Image.open(path) as image:
+            image = ImageOps.exif_transpose(image)
+            width, height = image.size
 
-            rgb = im.convert("RGB")
+            rgb = image.convert("RGB")
             small = ImageOps.contain(rgb, (256, 256))
             gray = np.asarray(small.convert("L"), dtype=np.float32) / 255.0
 
@@ -41,10 +37,9 @@ def extract_basic_features(path: str) -> np.ndarray:
         sharpness = 0.0
 
     aspect_ratio = float(width / height) if height else 0.0
-
     name = str(path).lower()
     is_screenshot_name = 1.0 if any(
-        token in name for token in ["screenshot", "screen shot", "스크린샷", "캡처"]
+        token in name for token in ["screenshot", "screen shot", "capture"]
     ) else 0.0
 
     values = [

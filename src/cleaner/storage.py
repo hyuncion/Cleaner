@@ -10,7 +10,7 @@ import pandas as pd
 from cleaner.config import AppConfig
 from cleaner.utils import now_iso
 
-LABEL_COLUMNS = ["path", "label", "source", "reason", "weight", "created_at"]
+LABEL_COLUMNS = ["path", "label", "action", "source", "reason", "weight", "created_at"]
 
 
 def ensure_data_dir(cfg: AppConfig) -> None:
@@ -21,8 +21,8 @@ def read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
     if not path.exists():
         return dict(default)
     try:
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
         return {**default, **data}
     except Exception:
         return dict(default)
@@ -30,15 +30,15 @@ def read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(data, handle, ensure_ascii=False, indent=2)
 
 
 def log_event(cfg: AppConfig, event_type: str, payload: dict[str, Any]) -> None:
     ensure_data_dir(cfg)
     event = {"ts": now_iso(), "event_type": event_type, "payload": payload}
-    with cfg.events_jsonl.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    with cfg.events_jsonl.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
 def load_labels(cfg: AppConfig) -> pd.DataFrame:
@@ -47,11 +47,12 @@ def load_labels(cfg: AppConfig) -> pd.DataFrame:
         return pd.DataFrame(columns=LABEL_COLUMNS)
 
     df = pd.read_csv(cfg.labels_csv)
-    for col in LABEL_COLUMNS:
-        if col not in df.columns:
-            df[col] = None
+    for column in LABEL_COLUMNS:
+        if column not in df.columns:
+            df[column] = None
 
     df = df[LABEL_COLUMNS]
+    df["path"] = df["path"].astype(str)
     df["label"] = pd.to_numeric(df["label"], errors="coerce")
     df["weight"] = pd.to_numeric(df["weight"], errors="coerce").fillna(1.0)
     return df
@@ -59,40 +60,55 @@ def load_labels(cfg: AppConfig) -> pd.DataFrame:
 
 def save_labels(cfg: AppConfig, df: pd.DataFrame) -> None:
     ensure_data_dir(cfg)
-    df.to_csv(cfg.labels_csv, index=False)
+    df = df.copy()
+    for column in LABEL_COLUMNS:
+        if column not in df.columns:
+            df[column] = None
+    df[LABEL_COLUMNS].to_csv(cfg.labels_csv, index=False)
 
 
 def upsert_label(
     cfg: AppConfig,
     path: str,
-    label: int,
+    label: int | float,
     source: str,
     reason: str = "",
     weight: float = 1.0,
+    action: str | None = None,
 ) -> None:
-    df = load_labels(cfg)
+    """Insert or replace one user decision.
 
-    # If the same photo is labeled again, keep the latest decision.
+    Training uses labels 0 and 1. A label of -1 is stored as "later" metadata
+    and ignored by the model.
+    """
+    df = load_labels(cfg)
+    path = str(Path(path).expanduser().resolve())
     df = df[df["path"] != path]
 
+    label_value = int(label)
     new_row = {
         "path": path,
-        "label": int(label),
+        "label": label_value,
+        "action": action or ("keep" if label_value == 1 else "discard" if label_value == 0 else "later"),
         "source": source,
         "reason": reason,
         "weight": float(weight),
         "created_at": now_iso(),
     }
-    if df.empty:
-        df = pd.DataFrame([new_row], columns=LABEL_COLUMNS)
-    else:
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     save_labels(cfg, df)
 
     log_event(
         cfg,
         "photo_labeled",
-        {"path": path, "label": int(label), "source": source, "reason": reason, "weight": weight},
+        {
+            "path": path,
+            "label": label_value,
+            "action": new_row["action"],
+            "source": source,
+            "reason": reason,
+            "weight": weight,
+        },
     )
 
 

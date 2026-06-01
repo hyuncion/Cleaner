@@ -21,16 +21,14 @@ ProgressCallback = Callable[[int, int], None]
 def update_embeddings(
     cfg: AppConfig,
     paths: list[str],
-    max_items: int = 300,
+    max_items: int = 0,
     progress_callback: ProgressCallback | None = None,
 ) -> int:
-    """Create/update embedding cache for photos.
+    """Create or update CLIP embedding cache.
 
-    Returns the number of newly processed images.
+    `max_items=0` means process every missing/stale image.
     """
-    encoder = load_clip_encoder(cfg)
     cache = load_embedding_cache(cfg)
-
     todo = [p for p in paths if not cache_entry_is_valid(p, cache.get(p))]
     if max_items > 0:
         todo = todo[:max_items]
@@ -38,6 +36,7 @@ def update_embeddings(
     if not todo:
         return 0
 
+    encoder = load_clip_encoder(cfg)
     done = 0
     batch_size = max(int(cfg.batch_size), 1)
 
@@ -45,11 +44,11 @@ def update_embeddings(
         batch_paths = todo[start : start + batch_size]
         embeddings, valid_paths = encoder.encode_images(batch_paths)
 
-        for path, vec in zip(valid_paths, embeddings):
+        for path, vector in zip(valid_paths, embeddings):
             try:
                 stat = Path(path).stat()
                 cache[path] = {
-                    "embedding": vec,
+                    "embedding": vector,
                     "features": extract_basic_features(path),
                     "mtime": stat.st_mtime,
                     "size": stat.st_size,
@@ -82,13 +81,13 @@ def make_feature_matrix(
         if not entry:
             continue
 
-        emb = entry.get("embedding")
+        embedding = entry.get("embedding")
         basic = entry.get("features")
-        if emb is None or basic is None:
+        if embedding is None or basic is None:
             continue
 
         row = np.concatenate(
-            [np.asarray(emb, dtype=np.float32), np.asarray(basic, dtype=np.float32)],
+            [np.asarray(embedding, dtype=np.float32), np.asarray(basic, dtype=np.float32)],
             axis=0,
         )
         rows.append(row)
